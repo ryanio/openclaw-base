@@ -1,0 +1,77 @@
+name: Build Base Image
+
+on:
+  schedule:
+    - cron: '0 6 * * *'  # Daily at 6 AM UTC
+  workflow_dispatch:      # Manual trigger
+
+jobs:
+  check-and-build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get latest openclaw version
+        id: versions
+        run: |
+          LATEST=$(npm view openclaw version)
+          CURRENT=$(grep -oP 'OPENCLAW_VERSION=\K[0-9.]+' Dockerfile || echo "none")
+          echo "latest=$LATEST" >> $GITHUB_OUTPUT
+          echo "current=$CURRENT" >> $GITHUB_OUTPUT
+          echo "Latest: $LATEST, Current: $CURRENT"
+
+      - name: Check if update needed
+        id: check
+        run: |
+          if [ "${{ steps.versions.outputs.latest }}" != "${{ steps.versions.outputs.current }}" ]; then
+            echo "needs_update=true" >> $GITHUB_OUTPUT
+            echo "New openclaw version available: ${{ steps.versions.outputs.latest }}"
+          else
+            echo "needs_update=false" >> $GITHUB_OUTPUT
+            echo "Already on latest version"
+          fi
+
+      - name: Set up Docker Buildx
+        if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push base image
+        if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          build-args: |
+            OPENCLAW_VERSION=${{ steps.versions.outputs.latest }}
+          tags: |
+            ghcr.io/ryanio/openclaw-base:latest
+            ghcr.io/ryanio/openclaw-base:openclaw-${{ steps.versions.outputs.latest }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Update Dockerfile version
+        if: steps.check.outputs.needs_update == 'true'
+        run: |
+          sed -i "s/ARG OPENCLAW_VERSION=.*/ARG OPENCLAW_VERSION=${{ steps.versions.outputs.latest }}/" Dockerfile
+
+      - name: Commit version update
+        if: steps.check.outputs.needs_update == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Dockerfile
+          git commit -m "chore: update openclaw to ${{ steps.versions.outputs.latest }}" || echo "No changes"
+          git push
