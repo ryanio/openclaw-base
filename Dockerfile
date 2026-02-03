@@ -2,7 +2,7 @@ FROM docker.io/cloudflare/sandbox:0.7.0
 
 # Version args for cache-busting and tracking
 ARG NODE_VERSION=22.13.1
-ARG OPENCLAW_VERSION=2026.1.30
+ARG OPENCLAW_VERSION=2026.2.1
 
 ENV NODE_VERSION=${NODE_VERSION}
 
