@@ -2,7 +2,7 @@ name: Build Base Image
 
 on:
   schedule:
-    - cron: '0 */6 * * *' # Every 6 hours (0:00, 6:00, 12:00, 18:00 UTC)
+    - cron: '0 */2 * * *' # Every 2 hours
   workflow_dispatch:      # Manual trigger
 
 jobs:
