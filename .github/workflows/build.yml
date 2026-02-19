@@ -18,8 +18,8 @@ jobs:
       - name: Get latest openclaw version
         id: versions
         run: |
-          LATEST=$(npm view openclaw version)
-          CURRENT=$(grep -oP 'OPENCLAW_VERSION=\K[0-9.]+' Dockerfile || echo "none")
+          LATEST=$(npm view openclaw versions --json | jq -r '[.[] | select(test("^[0-9.]+$"))] | last')
+          CURRENT=$(grep -oP 'OPENCLAW_VERSION=\K[^\s"]+' Dockerfile || echo "none")
           echo "latest=$LATEST" >> $GITHUB_OUTPUT
           echo "current=$CURRENT" >> $GITHUB_OUTPUT
           echo "Latest: $LATEST, Current: $CURRENT"
